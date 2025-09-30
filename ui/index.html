@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lan-scan-rs</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>lan-scan-rs</h1>
+      <p class="tagline">Fast, safe-by-default async LAN TCP connect scanner</p>
+      <noscript><p class="warn">This UI requires JavaScript to run scans.</p></noscript>
+    </header>
+
+    <section class="controls">
+      <div class="field">
+        <label for="targets">Targets (CIDR or IP, comma-separated)</label>
+        <input id="targets" type="text" placeholder="e.g. 192.168.1.0/24, 127.0.0.1" />
+      </div>
+      <div class="field">
+        <label for="ports">Ports (optional; comma/range list, e.g. 22,80,443,8000-8010)</label>
+        <input id="ports" type="text" placeholder="leave empty for defaults" />
+      </div>
+      <div class="field-inline">
+        <label for="concurrency">Concurrency</label>
+        <input id="concurrency" type="number" min="1" max="5000" value="200" />
+      </div>
+      <div class="field-inline">
+        <label for="timeout">Timeout (ms)</label>
+        <input id="timeout" type="number" min="50" max="5000" step="50" value="400" />
+      </div>
+      <div class="actions">
+        <button id="startBtn">Start Scan</button>
+      </div>
+    </section>
+
+    <section class="status">
+      <h2>Status</h2>
+      <div id="statusText">Idle</div>
+      <div id="progress"></div>
+    </section>
+
+    <section class="results">
+      <h2>Results</h2>
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>IP</th>
+            <th>Port</th>
+            <th>Latency (ms)</th>
+            <th>Banner</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+  </html>
+
