@@ -60,6 +60,3 @@ Development
 
 License
 - MIT — see LICENSE for details.
-
-See also
-- USAGE.md — safety notes and more examples.

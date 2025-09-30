@@ -1,4 +1,5 @@
 use crate::types::{ScanEntry, ScanResults};
+use ::time::{format_description::well_known, OffsetDateTime};
 use anyhow::Result;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -10,7 +11,6 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
 use tokio_util::sync::CancellationToken;
-use ::time::{format_description::well_known, OffsetDateTime};
 
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
 ///

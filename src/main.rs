@@ -137,7 +137,12 @@ async fn main() -> Result<()> {
             eprintln!("No valid targets parsed. Exiting.");
         } else {
             let ports_list = ports::load_ports_or_default(&cli.ports);
-            println!("Starting scan: {} hosts x {} ports = {} sockets", targets.len(), ports_list.len(), targets.len() * ports_list.len());
+            println!(
+                "Starting scan: {} hosts x {} ports = {} sockets",
+                targets.len(),
+                ports_list.len(),
+                targets.len() * ports_list.len()
+            );
             let results = scanner::scan_targets(
                 &targets,
                 &ports_list,
@@ -163,7 +168,12 @@ async fn main() -> Result<()> {
                     targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
                 }
                 let ports_list = ports::load_ports_or_default(&cli.ports);
-                println!("Starting scan: {} hosts x {} ports = {} sockets", targets_all.len(), ports_list.len(), targets_all.len() * ports_list.len());
+                println!(
+                    "Starting scan: {} hosts x {} ports = {} sockets",
+                    targets_all.len(),
+                    ports_list.len(),
+                    targets_all.len() * ports_list.len()
+                );
                 let results = scanner::scan_targets(
                     &targets_all,
                     &ports_list,
@@ -266,10 +276,14 @@ fn parse_targets_arg(input: Option<&str>) -> anyhow::Result<Vec<IpAddr>> {
                 let content = fs::read_to_string(p)?;
                 for line in content.lines() {
                     let ln = line.split('#').next().unwrap_or("").trim();
-                    if ln.is_empty() { continue; }
+                    if ln.is_empty() {
+                        continue;
+                    }
                     for tok in ln.split(|c: char| c.is_whitespace() || c == ',') {
                         let tok = tok.trim();
-                        if tok.is_empty() { continue; }
+                        if tok.is_empty() {
+                            continue;
+                        }
                         push_target_token(tok, &mut out)?;
                     }
                 }
@@ -277,7 +291,9 @@ fn parse_targets_arg(input: Option<&str>) -> anyhow::Result<Vec<IpAddr>> {
                 // Single token (IP or CIDR), or comma-separated list
                 for tok in s_trim.split(|c: char| c.is_whitespace() || c == ',') {
                     let tok = tok.trim();
-                    if tok.is_empty() { continue; }
+                    if tok.is_empty() {
+                        continue;
+                    }
                     push_target_token(tok, &mut out)?;
                 }
             }
