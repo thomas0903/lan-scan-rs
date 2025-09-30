@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::net::{IpAddr, Ipv4Addr};
 
-use lan_scan_rs::{netdetect, ports, scanner};
+use lan_scan_rs::{netdetect, ports, scanner, server};
 use lan_scan_rs::types::ScanResults;
 use serde_json;
 use std::fs::File;
@@ -84,6 +84,16 @@ async fn main() -> Result<()> {
                 eprintln!("Warning: failed to detect local networks: {e}");
             }
         }
+    }
+
+    // Start embedded UI server if requested (non-blocking background task)
+    if cli.serve_ui {
+        let bind = "127.0.0.1:8080";
+        tokio::spawn(async move {
+            if let Err(e) = server::spawn_server(bind).await {
+                eprintln!("HTTP UI server error: {e}");
+            }
+        });
     }
 
     // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.

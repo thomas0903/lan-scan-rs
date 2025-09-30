@@ -11,6 +11,7 @@ use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
 use tokio_util::sync::CancellationToken;
 
+
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
 ///
 /// - Limits concurrent socket attempts using a `Semaphore`.
@@ -23,7 +24,7 @@ pub async fn scan_targets(
     concurrency: usize,
     timeout: Duration,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, None).await
+    scan_targets_internal(targets, ports, concurrency, timeout, None, None).await
 }
 
 /// Variant that accepts a `CancellationToken` to allow external cancellation.
@@ -34,7 +35,43 @@ pub async fn scan_targets_with_cancel(
     timeout: Duration,
     cancel: CancellationToken,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, Some(cancel)).await
+    scan_targets_internal(targets, ports, concurrency, timeout, Some(cancel), None).await
+}
+
+#[derive(Clone, Debug)]
+pub struct SharedProgress {
+    pub scanned_done: Arc<AtomicU64>,
+    pub open_count: Arc<AtomicU64>,
+    pub entries: Arc<Mutex<Vec<ScanEntry>>>,
+}
+
+impl SharedProgress {
+    pub fn new() -> Self {
+        Self {
+            scanned_done: Arc::new(AtomicU64::new(0)),
+            open_count: Arc::new(AtomicU64::new(0)),
+            entries: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+}
+
+pub async fn scan_targets_with_shared(
+    targets: &[IpAddr],
+    ports: &[u16],
+    concurrency: usize,
+    timeout: Duration,
+    cancel: CancellationToken,
+    shared: SharedProgress,
+) -> Result<ScanResults> {
+    scan_targets_internal(
+        targets,
+        ports,
+        concurrency,
+        timeout,
+        Some(cancel),
+        Some(shared),
+    )
+    .await
 }
 
 async fn scan_targets_internal(
@@ -43,11 +80,18 @@ async fn scan_targets_internal(
     concurrency: usize,
     timeout: Duration,
     cancel_opt: Option<CancellationToken>,
+    shared_opt: Option<SharedProgress>,
 ) -> Result<ScanResults> {
     let total = targets.len() as u64 * ports.len() as u64;
-    let scanned_done = Arc::new(AtomicU64::new(0));
-    let open_count = Arc::new(AtomicU64::new(0));
-    let entries: Arc<Mutex<Vec<ScanEntry>>> = Arc::new(Mutex::new(Vec::new()));
+    let (scanned_done, open_count, entries) = if let Some(s) = &shared_opt {
+        (s.scanned_done.clone(), s.open_count.clone(), s.entries.clone())
+    } else {
+        (
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(Mutex::new(Vec::new())),
+        )
+    };
 
     let sem = Arc::new(Semaphore::new(concurrency.clamp(1, 5_000)));
     let mut set = JoinSet::new();
@@ -170,4 +214,3 @@ fn now_iso_like() -> String {
         .as_secs();
     format!("{}", now)
 }
-

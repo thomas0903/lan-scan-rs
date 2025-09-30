@@ -3,4 +3,4 @@ pub mod ports;
 pub mod netdetect;
 pub mod scanner;
 pub mod types;
-
+pub mod server;
