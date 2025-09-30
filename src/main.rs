@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
         if t.trim() == "127.0.0.1" {
             let targets = vec![IpAddr::V4(Ipv4Addr::LOCALHOST)];
             // Keep demo ports small and fast
-            let demo_ports: Vec<u16> = vec![22, 80, 443];
+            let demo_ports: Vec<u16> = vec![22, 80, 443, 8080];
             println!("\nRunning demo scan for 127.0.0.1 on ports {:?}...", demo_ports);
             let results = scanner::scan_targets(
                 &targets,
