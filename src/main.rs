@@ -1,7 +1,8 @@
 use std::path::PathBuf;
+use std::time::Duration;
+use std::net::{IpAddr, Ipv4Addr};
 
-mod ports;
-mod netdetect;
+use lan_scan_rs::{netdetect, ports, scanner};
 
 use anyhow::Result;
 use clap::Parser;
@@ -40,7 +41,8 @@ struct Cli {
     serve_ui: bool,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     println!("lan-scan-rs configuration:");
@@ -81,7 +83,39 @@ fn main() -> Result<()> {
         }
     }
 
-    // Scanner, network detection, and UI server wiring will be implemented in later steps.
-    // For now, we just return successfully after printing parsed options.
+    // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.
+    if let Some(t) = cli.targets.as_deref() {
+        if t.trim() == "127.0.0.1" {
+            let targets = vec![IpAddr::V4(Ipv4Addr::LOCALHOST)];
+            // Keep demo ports small and fast
+            let demo_ports: Vec<u16> = vec![22, 80, 443];
+            println!("\nRunning demo scan for 127.0.0.1 on ports {:?}...", demo_ports);
+            let results = scanner::scan_targets(
+                &targets,
+                &demo_ports,
+                cli.concurrency.min(64),
+                Duration::from_millis(cli.timeout_ms),
+            )
+            .await?;
+            println!(
+                "Scan done: scanned {} sockets, {} open found",
+                results.scanned_done, results.open_count
+            );
+            for e in &results.entries {
+                println!(
+                    "  {}:{} open ({} ms){}",
+                    e.ip,
+                    e.port,
+                    e.latency_ms,
+                    e.banner
+                        .as_ref()
+                        .map(|b| format!(" banner=\"{}\"", b))
+                        .unwrap_or_default()
+                );
+            }
+        }
+    }
+
+    // Scanner, network detection, and UI server wiring will be implemented further in next steps.
     Ok(())
 }
