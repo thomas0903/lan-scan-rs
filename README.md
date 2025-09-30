@@ -21,7 +21,7 @@ Quick Examples
 
 Embedded Web UI
 - Start the embedded UI and API on 127.0.0.1:8080:
-  - ./target/release/lan-scan-rs --serve-ui
+  - ./target/release/lan-scan-rs --serve-ui --bind 127.0.0.1:8080
 - Then open in your browser:
   - http://127.0.0.1:8080
 - Use the form to enter targets (CIDR/IP), optional port list, concurrency, timeout, then Start Scan. The UI polls progress and renders a results table when finished.
@@ -61,3 +61,5 @@ Development
 License
 - MIT — see LICENSE for details.
 
+See also
+- USAGE.md — safety notes and more examples.

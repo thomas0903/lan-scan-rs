@@ -3,13 +3,14 @@ use anyhow::Result;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
 use tokio_util::sync::CancellationToken;
+use ::time::{format_description::well_known, OffsetDateTime};
 
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
 ///
@@ -219,11 +220,8 @@ fn futures_collect_vec_sync(arc: &Arc<Mutex<Vec<ScanEntry>>>) -> Mutex<Vec<ScanE
 }
 
 fn now_iso_like() -> String {
-    // Minimal ISO-like timestamp without extra deps: "YYYY-MM-DDTHH:MM:SSZ" approximation
-    // using UNIX_EPOCH seconds (not timezone-accurate). This will be replaced later by a proper formatter.
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format!("{}", now)
+    // RFC3339-like UTC timestamp using `time` crate for correctness without heavy deps.
+    let now = OffsetDateTime::now_utc();
+    now.format(&well_known::Rfc3339)
+        .unwrap_or_else(|_| String::from("1970-01-01T00:00:00Z"))
 }

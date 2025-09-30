@@ -15,3 +15,4 @@ tokio-util = "0.7"
 if-addrs = "0.14"
 ipnet = "2.9"
 tower-http = { version = "0.5", features = ["fs", "trace"] }
+time = { version = "0.3", features = ["formatting"] }

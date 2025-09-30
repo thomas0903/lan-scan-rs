@@ -3,11 +3,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use lan_scan_rs::types::ScanResults;
-use lan_scan_rs::{netdetect, scanner, server};
-use std::fs::File;
+use lan_scan_rs::{netdetect, ports, scanner, server};
+use std::fs::{self, File};
+use std::path::Path;
 
 use anyhow::Result;
 use clap::Parser;
+use ipnet::IpNet;
 
 /// lan-scan-rs — Fast, safe-by-default async LAN TCP port scanner with a tiny embedded web UI.
 #[derive(Debug, Clone, Parser)]
@@ -41,6 +43,10 @@ struct Cli {
     /// Start the embedded HTTP UI server (serves static UI; endpoints TBD).
     #[arg(long = "serve-ui", default_value_t = false)]
     serve_ui: bool,
+
+    /// Bind address for the HTTP UI server (only used with --serve-ui).
+    #[arg(long, default_value = "127.0.0.1:8080")]
+    bind: String,
 }
 
 #[tokio::main]
@@ -87,13 +93,13 @@ async fn main() -> Result<()> {
 
     // Start embedded UI server if requested (non-blocking background task)
     if cli.serve_ui {
-        let bind = "127.0.0.1:8080";
+        let bind = cli.bind.clone();
         tokio::spawn(async move {
-            if let Err(e) = server::spawn_server(bind).await {
+            if let Err(e) = server::spawn_server(&bind).await {
                 eprintln!("HTTP UI server error: {e}");
             }
         });
-        println!("UI server starting at http://{} (Ctrl+C to stop)", bind);
+        println!("UI server starting at http://{} (Ctrl+C to stop)", cli.bind);
     }
 
     // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.
@@ -121,6 +127,60 @@ async fn main() -> Result<()> {
                     println!("Wrote JSON results to {}", path.display());
                 }
             }
+        }
+    }
+
+    // If no demo override, run a full scan based on parsed targets and ports.
+    if cli.targets.is_some() && cli.targets.as_deref() != Some("127.0.0.1") {
+        let targets = parse_targets_arg(cli.targets.as_deref())?;
+        if targets.is_empty() {
+            eprintln!("No valid targets parsed. Exiting.");
+        } else {
+            let ports_list = ports::load_ports_or_default(&cli.ports);
+            println!("Starting scan: {} hosts x {} ports = {} sockets", targets.len(), ports_list.len(), targets.len() * ports_list.len());
+            let results = scanner::scan_targets(
+                &targets,
+                &ports_list,
+                cli.concurrency,
+                Duration::from_millis(cli.timeout_ms),
+            )
+            .await?;
+            print_results_table(&results);
+            if let Some(path) = cli.output.as_deref() {
+                if let Err(e) = write_results_json(path, &results) {
+                    eprintln!("Failed to write JSON to {}: {}", path.display(), e);
+                } else {
+                    println!("Wrote JSON results to {}", path.display());
+                }
+            }
+        }
+    } else if cli.targets.is_none() {
+        // Auto-detect and scan defaults if no targets provided.
+        match netdetect::detect_local_cidrs() {
+            Ok(cidrs) => {
+                let mut targets_all: Vec<IpAddr> = Vec::new();
+                for cidr in &cidrs {
+                    targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
+                }
+                let ports_list = ports::load_ports_or_default(&cli.ports);
+                println!("Starting scan: {} hosts x {} ports = {} sockets", targets_all.len(), ports_list.len(), targets_all.len() * ports_list.len());
+                let results = scanner::scan_targets(
+                    &targets_all,
+                    &ports_list,
+                    cli.concurrency,
+                    Duration::from_millis(cli.timeout_ms),
+                )
+                .await?;
+                print_results_table(&results);
+                if let Some(path) = cli.output.as_deref() {
+                    if let Err(e) = write_results_json(path, &results) {
+                        eprintln!("Failed to write JSON to {}: {}", path.display(), e);
+                    } else {
+                        println!("Wrote JSON results to {}", path.display());
+                    }
+                }
+            }
+            Err(e) => eprintln!("Failed to detect local networks: {e}"),
         }
     }
 
@@ -193,5 +253,46 @@ fn print_results_table(results: &ScanResults) {
 fn write_results_json(path: &std::path::Path, results: &ScanResults) -> anyhow::Result<()> {
     let file = File::create(path)?;
     serde_json::to_writer_pretty(file, results)?;
+    Ok(())
+}
+
+fn parse_targets_arg(input: Option<&str>) -> anyhow::Result<Vec<IpAddr>> {
+    let mut out: Vec<IpAddr> = Vec::new();
+    if let Some(s) = input {
+        let s_trim = s.trim();
+        if !s_trim.is_empty() {
+            let p = Path::new(s_trim);
+            if p.exists() && p.is_file() {
+                let content = fs::read_to_string(p)?;
+                for line in content.lines() {
+                    let ln = line.split('#').next().unwrap_or("").trim();
+                    if ln.is_empty() { continue; }
+                    for tok in ln.split(|c: char| c.is_whitespace() || c == ',') {
+                        let tok = tok.trim();
+                        if tok.is_empty() { continue; }
+                        push_target_token(tok, &mut out)?;
+                    }
+                }
+            } else {
+                // Single token (IP or CIDR), or comma-separated list
+                for tok in s_trim.split(|c: char| c.is_whitespace() || c == ',') {
+                    let tok = tok.trim();
+                    if tok.is_empty() { continue; }
+                    push_target_token(tok, &mut out)?;
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn push_target_token(tok: &str, out: &mut Vec<IpAddr>) -> anyhow::Result<()> {
+    if tok.contains('/') {
+        let net: IpNet = tok.parse()?;
+        out.extend(netdetect::expand_cidr_to_ips(net));
+    } else {
+        let ip: IpAddr = tok.parse()?;
+        out.push(ip);
+    }
     Ok(())
 }
