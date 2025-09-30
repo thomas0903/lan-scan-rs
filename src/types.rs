@@ -7,6 +7,7 @@ pub struct ScanEntry {
     pub port: u16,
     pub open: bool,
     pub latency_ms: u64,
+    pub service: Option<String>,
     pub banner: Option<String>,
     pub timestamp: String,
 }

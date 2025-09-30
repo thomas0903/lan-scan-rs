@@ -8,9 +8,9 @@
       "port": 8080,
       "open": true,
       "latency_ms": 2,
+      "service": "http",
       "banner": "HTTP/1.1 400 Bad Request\r\n",
       "timestamp": "1700000000"
     }
   ]
 }
-

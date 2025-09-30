@@ -216,30 +216,38 @@ fn print_results_table(results: &ScanResults) {
     }
     let port_w = 4usize.max("port".len());
     let lat_w = 9usize.max("latency_ms".len());
+    let mut svc_w = 7usize.max("service".len());
+    for e in &results.entries {
+        if let Some(s) = &e.service { svc_w = svc_w.max(s.len()); }
+    }
 
     println!(
         "\nOpen ports: {} (scanned: {})",
         results.open_count, results.scanned_done
     );
     println!(
-        "{:<ip_w$}  {:>port_w$}  {:>lat_w$}  {:<banner_w$}",
+        "{:<ip_w$}  {:>port_w$}  {:<svc_w$}  {:>lat_w$}  {:<banner_w$}",
         "ip",
         "port",
+        "service",
         "latency_ms",
         "banner",
         ip_w = ip_w,
         port_w = port_w,
+        svc_w = svc_w,
         lat_w = lat_w,
         banner_w = banner_w
     );
     println!(
-        "{:-<ip_w$}  {:-<port_w$}  {:-<lat_w$}  {:-<banner_w$}",
+        "{:-<ip_w$}  {:-<port_w$}  {:-<svc_w$}  {:-<lat_w$}  {:-<banner_w$}",
+        "",
         "",
         "",
         "",
         "",
         ip_w = ip_w,
         port_w = port_w,
+        svc_w = svc_w,
         lat_w = lat_w,
         banner_w = banner_w
     );
@@ -249,13 +257,15 @@ fn print_results_table(results: &ScanResults) {
             bsnip.truncate(60);
         }
         println!(
-            "{:<ip_w$}  {:>port_w$}  {:>lat_w$}  {:<banner_w$}",
+            "{:<ip_w$}  {:>port_w$}  {:<svc_w$}  {:>lat_w$}  {:<banner_w$}",
             e.ip,
             e.port,
+            e.service.clone().unwrap_or_default(),
             e.latency_ms,
             bsnip,
             ip_w = ip_w,
             port_w = port_w,
+            svc_w = svc_w,
             lat_w = lat_w,
             banner_w = banner_w
         );

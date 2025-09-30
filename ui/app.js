@@ -61,10 +61,12 @@
       const tr = document.createElement('tr');
       const tdIp = document.createElement('td'); tdIp.textContent = e.ip;
       const tdPort = document.createElement('td'); tdPort.textContent = e.port;
+      const tdSvc = document.createElement('td'); tdSvc.textContent = e.service || '';
       const tdLat = document.createElement('td'); tdLat.textContent = e.latency_ms;
       const tdBanner = document.createElement('td'); tdBanner.textContent = e.banner || '';
       tr.appendChild(tdIp);
       tr.appendChild(tdPort);
+      tr.appendChild(tdSvc);
       tr.appendChild(tdLat);
       tr.appendChild(tdBanner);
       tableBody.appendChild(tr);
@@ -120,4 +122,3 @@
     pollLoop();
   });
 })();
-

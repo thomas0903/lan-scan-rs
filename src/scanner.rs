@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
@@ -148,14 +148,21 @@ async fn scan_targets_internal(
                 match connect_res {
                     Ok(Ok(mut stream)) => {
                         let latency_ms = start.elapsed().as_millis() as u64;
-                        // Attempt a short, passive banner read
-                        let banner = read_banner(&mut stream).await;
+                        // Attempt a short, passive banner read; then light protocol-specific probes
+                        let mut banner = read_banner(&mut stream).await;
+                        if banner.is_none() {
+                            if let Some(b) = probe_protocol(&mut stream, port).await {
+                                banner = Some(b);
+                            }
+                        }
+                        let service = guess_service(port, banner.as_deref());
                         open_count.fetch_add(1, Ordering::Relaxed);
                         let entry = ScanEntry {
                             ip: ip.to_string(),
                             port,
                             open: true,
                             latency_ms,
+                            service,
                             banner,
                             timestamp: now_iso_like(),
                         };
@@ -199,6 +206,102 @@ async fn read_banner(stream: &mut TcpStream) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Light, safe protocol-specific probes to coax a banner without being intrusive.
+/// Currently only sends an HTTP/1.0 GET on common HTTP ports.
+async fn probe_protocol(stream: &mut TcpStream, port: u16) -> Option<String> {
+    if is_http_port(port) {
+        let req = b"GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: 127.0.0.1\r\n\r\n";
+        let _ = time::timeout(Duration::from_millis(150), stream.write_all(req)).await.ok()?;
+        return read_banner(stream).await;
+    }
+    None
+}
+
+fn is_http_port(port: u16) -> bool {
+    matches!(
+        port,
+        80 | 81 | 82 | 591 | 8000 | 8001 | 8008 | 8080 | 8081 | 8088 | 8888
+    )
+}
+
+fn guess_service(port: u16, banner: Option<&str>) -> Option<String> {
+    // Prefer protocol hints in banners (e.g., SSH-2.0-...)
+    if let Some(b) = banner {
+        let lb = b.to_ascii_lowercase();
+        if lb.contains("ssh-") {
+            return Some("ssh".to_string());
+        }
+        if lb.starts_with("http/") || lb.contains("http/1.") || lb.contains("server:") {
+            return Some("http".to_string());
+        }
+        if lb.contains("smtp") {
+            return Some("smtp".to_string());
+        }
+        if lb.contains("redis") {
+            return Some("redis".to_string());
+        }
+        if lb.contains("mysql") {
+            return Some("mysql".to_string());
+        }
+        if lb.contains("postgres") || lb.contains("postgresql") {
+            return Some("postgresql".to_string());
+        }
+        if lb.contains("mongodb") {
+            return Some("mongodb".to_string());
+        }
+        if lb.contains("mqtt") {
+            return Some("mqtt".to_string());
+        }
+    }
+    // Fallback to common well-known ports
+    let name = match port {
+        22 => Some("ssh"),
+        23 => Some("telnet"),
+        25 => Some("smtp"),
+        53 => Some("dns"),
+        80 | 81 | 82 | 591 | 8000 | 8001 | 8008 | 8080 | 8081 | 8088 | 8888 => Some("http"),
+        110 => Some("pop3"),
+        123 => Some("ntp"),
+        139 | 445 => Some("smb"),
+        143 => Some("imap"),
+        161 => Some("snmp"),
+        389 => Some("ldap"),
+        443 | 8443 => Some("https"),
+        465 | 587 => Some("smtps"),
+        631 => Some("ipp"),
+        993 => Some("imaps"),
+        995 => Some("pop3s"),
+        1433 => Some("mssql"),
+        1521 => Some("oracle"),
+        1723 => Some("pptp"),
+        1883 => Some("mqtt"),
+        2049 => Some("nfs"),
+        2375 | 2376 => Some("docker"),
+        2380 => Some("etcd"),
+        3000 => Some("http"),
+        3128 => Some("http-proxy"),
+        3260 => Some("iscsi"),
+        3306 => Some("mysql"),
+        3389 => Some("rdp"),
+        4369 => Some("epmd"),
+        5000 => Some("http"),
+        5040 => Some("unknown"),
+        5432 => Some("postgresql"),
+        5672 => Some("amqp"),
+        5900 => Some("vnc"),
+        5985 | 5986 => Some("winrm"),
+        6379 => Some("redis"),
+        7001 | 7002 => Some("http"),
+        9000 => Some("http"),
+        9092 => Some("kafka"),
+        9200 | 9300 => Some("elasticsearch"),
+        11211 => Some("memcached"),
+        27017 => Some("mongodb"),
+        _ => None,
+    };
+    name.map(|s| s.to_string())
 }
 
 /// Fallback to extract inner Vec when Arc still has references (rare here). Blocks to clone data.
