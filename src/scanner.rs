@@ -11,6 +11,9 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
 use tokio_util::sync::CancellationToken;
+use tokio_native_tls::native_tls::{self, Certificate};
+use tokio_native_tls::TlsConnector;
+use x509_parser::prelude::*;
 
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
 ///
@@ -146,16 +149,25 @@ async fn scan_targets_internal(
                 let start = Instant::now();
                 let connect_res = time::timeout(timeout, TcpStream::connect(addr)).await;
                 match connect_res {
-                    Ok(Ok(mut stream)) => {
+                    Ok(Ok(stream)) => {
                         let latency_ms = start.elapsed().as_millis() as u64;
-                        // Attempt a short, passive banner read; then light protocol-specific probes
-                        let mut banner = read_banner(&mut stream).await;
-                        if banner.is_none() {
-                            if let Some(b) = probe_protocol(&mut stream, port).await {
-                                banner = Some(b);
+                        let (service, banner) = if is_tls_port(port) {
+                            match tls_probe(stream, ip, port).await {
+                                Some((svc, bn)) => (svc, bn),
+                                None => (Some("https".to_string()), None),
                             }
-                        }
-                        let service = guess_service(port, banner.as_deref());
+                        } else {
+                            let mut stream = stream;
+                            // Attempt a short, passive banner read; then light protocol-specific probes
+                            let mut b = read_banner(&mut stream).await;
+                            if b.is_none() {
+                                if let Some(pb) = probe_protocol(&mut stream, port).await {
+                                    b = Some(pb);
+                                }
+                            }
+                            let svc = guess_service(port, b.as_deref());
+                            (svc, b)
+                        };
                         open_count.fetch_add(1, Ordering::Relaxed);
                         let entry = ScanEntry {
                             ip: ip.to_string(),
@@ -217,6 +229,64 @@ async fn probe_protocol(stream: &mut TcpStream, port: u16) -> Option<String> {
         return read_banner(stream).await;
     }
     None
+}
+
+fn is_tls_port(port: u16) -> bool {
+    matches!(port, 443 | 8443 | 9443 | 993 | 995 | 465)
+}
+
+async fn tls_probe(stream: TcpStream, ip: IpAddr, _port: u16) -> Option<(Option<String>, Option<String>)> {
+    let domain = match ip {
+        IpAddr::V4(v4) => v4.to_string(),
+        IpAddr::V6(v6) => v6.to_string(),
+    };
+    let builder = native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .ok()?;
+    let cx = TlsConnector::from(builder);
+    let tls = time::timeout(Duration::from_millis(600), cx.connect(&domain, stream))
+        .await
+        .ok()?
+        .ok()?;
+    let inner = tls.get_ref();
+    let cert_summary = match inner.peer_certificate() {
+        Ok(Some(cert)) => format_cert_summary(&cert),
+        _ => None,
+    };
+    let banner = cert_summary.map(|c| format!("TLS: {}", c));
+    let service = Some("https".to_string());
+    Some((service, banner))
+}
+
+fn format_cert_summary(cert: &Certificate) -> Option<String> {
+    let der = cert.to_der().ok()?;
+    let (_rem, x509) = parse_x509_certificate(&der).ok()?;
+    let subject_cn = x509
+        .subject()
+        .iter_common_name()
+        .next()
+        .and_then(|cn| cn.as_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let issuer_cn = x509
+        .issuer()
+        .iter_common_name()
+        .next()
+        .and_then(|cn| cn.as_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let not_after = x509
+        .validity()
+        .not_after
+        .to_rfc2822()
+        .unwrap_or_else(|_| "invalid".to_string());
+    let mut parts = Vec::new();
+    if !subject_cn.is_empty() { parts.push(format!("subject_cn={}", subject_cn)); }
+    if !issuer_cn.is_empty() { parts.push(format!("issuer_cn={}", issuer_cn)); }
+    parts.push(format!("not_after={}", not_after));
+    Some(parts.join(", "))
 }
 
 fn is_http_port(port: u16) -> bool {
