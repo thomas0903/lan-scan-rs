@@ -1,7 +1,6 @@
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::Path;
-use std::str::FromStr;
 
 /// Parse a ports file content into a deduplicated list of TCP ports (1..=65535).
 ///

@@ -1,6 +1,6 @@
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use axum::{
     extract::State,
     http::StatusCode,

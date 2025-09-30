@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::net::{IpAddr, Ipv4Addr};
 
-use lan_scan_rs::{netdetect, ports, scanner, server};
+use lan_scan_rs::{netdetect, scanner, server};
 use lan_scan_rs::types::ScanResults;
 use serde_json;
 use std::fs::File;
@@ -94,6 +94,7 @@ async fn main() -> Result<()> {
                 eprintln!("HTTP UI server error: {e}");
             }
         });
+        println!("UI server starting at http://{} (Ctrl+C to stop)", bind);
     }
 
     // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.
@@ -121,7 +122,12 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Scanner, network detection, and UI server wiring will be implemented further in next steps.
+    // If UI is running, keep the process alive until Ctrl+C.
+    if cli.serve_ui {
+        println!("Press Ctrl+C to stop the server...");
+        let _ = tokio::signal::ctrl_c().await;
+    }
+
     Ok(())
 }
 
