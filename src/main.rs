@@ -47,6 +47,10 @@ struct Cli {
     /// Bind address for the HTTP UI server (only used with --serve-ui).
     #[arg(long, default_value = "127.0.0.1:8080")]
     bind: String,
+
+    /// Enable Redis PING probe on port 6379 (optional, off by default).
+    #[arg(long = "probe-redis", default_value_t = false)]
+    probe_redis: bool,
 }
 
 #[tokio::main]
@@ -113,11 +117,12 @@ async fn main() -> Result<()> {
                     "\nRunning demo scan for 127.0.0.1 on ports {:?}...",
                     demo_ports
                 );
-                let results = scanner::scan_targets(
+                let results = scanner::scan_targets_opts(
                     &targets,
                     &demo_ports,
                     cli.concurrency.min(64),
                     Duration::from_millis(cli.timeout_ms),
+                    cli.probe_redis,
                 )
                 .await?;
                 print_results_table(&results);
@@ -144,11 +149,12 @@ async fn main() -> Result<()> {
                     ports_list.len(),
                     targets.len() * ports_list.len()
                 );
-                let results = scanner::scan_targets(
+                let results = scanner::scan_targets_opts(
                     &targets,
                     &ports_list,
                     cli.concurrency,
                     Duration::from_millis(cli.timeout_ms),
+                    cli.probe_redis,
                 )
                 .await?;
                 print_results_table(&results);
@@ -175,11 +181,12 @@ async fn main() -> Result<()> {
                         ports_list.len(),
                         targets_all.len() * ports_list.len()
                     );
-                    let results = scanner::scan_targets(
+                    let results = scanner::scan_targets_opts(
                         &targets_all,
                         &ports_list,
                         cli.concurrency,
                         Duration::from_millis(cli.timeout_ms),
+                        cli.probe_redis,
                     )
                     .await?;
                     print_results_table(&results);

@@ -27,7 +27,18 @@ pub async fn scan_targets(
     concurrency: usize,
     timeout: Duration,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, None, None).await
+    scan_targets_internal(targets, ports, concurrency, timeout, None, None, false).await
+}
+
+/// Run a scan with additional options.
+pub async fn scan_targets_opts(
+    targets: &[IpAddr],
+    ports: &[u16],
+    concurrency: usize,
+    timeout: Duration,
+    probe_redis: bool,
+) -> Result<ScanResults> {
+    scan_targets_internal(targets, ports, concurrency, timeout, None, None, probe_redis).await
 }
 
 /// Variant that accepts a `CancellationToken` to allow external cancellation.
@@ -38,7 +49,7 @@ pub async fn scan_targets_with_cancel(
     timeout: Duration,
     cancel: CancellationToken,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, Some(cancel), None).await
+    scan_targets_internal(targets, ports, concurrency, timeout, Some(cancel), None, false).await
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +90,28 @@ pub async fn scan_targets_with_shared(
         timeout,
         Some(cancel),
         Some(shared),
+        false,
+    )
+    .await
+}
+
+pub async fn scan_targets_with_shared_opts(
+    targets: &[IpAddr],
+    ports: &[u16],
+    concurrency: usize,
+    timeout: Duration,
+    cancel: CancellationToken,
+    shared: SharedProgress,
+    probe_redis: bool,
+) -> Result<ScanResults> {
+    scan_targets_internal(
+        targets,
+        ports,
+        concurrency,
+        timeout,
+        Some(cancel),
+        Some(shared),
+        probe_redis,
     )
     .await
 }
@@ -90,6 +123,7 @@ async fn scan_targets_internal(
     timeout: Duration,
     cancel_opt: Option<CancellationToken>,
     shared_opt: Option<SharedProgress>,
+    probe_redis: bool,
 ) -> Result<ScanResults> {
     let total = targets.len() as u64 * ports.len() as u64;
     let (scanned_done, open_count, entries) = if let Some(s) = &shared_opt {
@@ -160,8 +194,11 @@ async fn scan_targets_internal(
                             let mut stream = stream;
                             // Attempt a short, passive banner read; then light protocol-specific probes
                             let mut b = read_banner(&mut stream).await;
+                            if port == 22 {
+                                if let Some(sshb) = probe_ssh(&mut stream).await { b = Some(sshb); }
+                            }
                             if b.is_none() {
-                                if let Some(pb) = probe_protocol(&mut stream, port).await {
+                                if let Some(pb) = probe_protocol(&mut stream, port, probe_redis).await {
                                     b = Some(pb);
                                 }
                             }
@@ -222,11 +259,12 @@ async fn read_banner(stream: &mut TcpStream) -> Option<String> {
 
 /// Light, safe protocol-specific probes to coax a banner without being intrusive.
 /// Currently only sends an HTTP/1.0 GET on common HTTP ports.
-async fn probe_protocol(stream: &mut TcpStream, port: u16) -> Option<String> {
+async fn probe_protocol(stream: &mut TcpStream, port: u16, probe_redis: bool) -> Option<String> {
     if is_http_port(port) {
-        let req = b"GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: 127.0.0.1\r\n\r\n";
-        let _ = time::timeout(Duration::from_millis(150), stream.write_all(req)).await.ok()?;
-        return read_banner(stream).await;
+        return probe_http(stream).await;
+    }
+    if probe_redis && port == 6379 {
+        return probe_redis_ping(stream).await;
     }
     None
 }
@@ -287,6 +325,84 @@ fn format_cert_summary(cert: &Certificate) -> Option<String> {
     if !issuer_cn.is_empty() { parts.push(format!("issuer_cn={}", issuer_cn)); }
     parts.push(format!("not_after={}", not_after));
     Some(parts.join(", "))
+}
+
+async fn probe_http(stream: &mut TcpStream) -> Option<String> {
+    let req = b"GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+    let _ = time::timeout(Duration::from_millis(200), stream.write_all(req)).await.ok()?;
+    let mut buf = vec![0u8; 2048];
+    let mut total = 0usize;
+    if let Ok(Ok(n)) = time::timeout(Duration::from_millis(300), stream.read(&mut buf)).await {
+        total = n;
+    }
+    if total == 0 { return None; }
+    buf.truncate(total);
+    let text = String::from_utf8_lossy(&buf).to_string();
+    let mut parts = Vec::new();
+    if let Some(server) = extract_header(&text, "server") {
+        parts.push(format!("server={}", server));
+    }
+    if let Some(title) = extract_html_title(&text) {
+        parts.push(format!("title=\"{}\"", title));
+    }
+    if parts.is_empty() { Some("HTTP".to_string()) } else { Some(format!("HTTP {}", parts.join(", "))) }
+}
+
+fn extract_header(resp: &str, name: &str) -> Option<String> {
+    let name_lc = name.to_ascii_lowercase();
+    for line in resp.lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            if k.trim().eq_ignore_ascii_case(&name_lc) {
+                return Some(v.trim().to_string());
+            }
+        }
+        if line.trim().is_empty() { break; }
+    }
+    None
+}
+
+fn extract_html_title(resp: &str) -> Option<String> {
+    let lower = resp.to_ascii_lowercase();
+    let body_start = lower.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
+    let body = &resp[body_start..];
+    let lbody = &lower[body_start..];
+    let t_start = lbody.find("<title")?;
+    let after = &lbody[t_start..];
+    let gt = after.find('>')?;
+    let rest = &body[t_start + gt + 1..];
+    let rest_l = &after[gt + 1..];
+    let t_end_rel = rest_l.find("</title>")?;
+    let mut title = rest[..t_end_rel].trim().to_string();
+    if title.len() > 120 { title.truncate(120); }
+    Some(title)
+}
+
+async fn probe_redis_ping(stream: &mut TcpStream) -> Option<String> {
+    // RESP: *1 CRLF $4 CRLF PING CRLF
+    let pkt = b"*1\r\n$4\r\nPING\r\n";
+    let _ = time::timeout(Duration::from_millis(200), stream.write_all(pkt)).await.ok()?;
+    let mut buf = [0u8; 64];
+    if let Ok(Ok(n)) = time::timeout(Duration::from_millis(200), stream.read(&mut buf)).await {
+        if n > 0 {
+            let s = String::from_utf8_lossy(&buf[..n]).to_string();
+            if s.starts_with("+PONG") { return Some("redis PONG".to_string()); }
+            return Some(s.replace('\n', "\\n").replace('\r', "\\r"));
+        }
+    }
+    None
+}
+
+async fn probe_ssh(stream: &mut TcpStream) -> Option<String> {
+    let mut buf = [0u8; 256];
+    if let Ok(Ok(n)) = time::timeout(Duration::from_millis(400), stream.read(&mut buf)).await {
+        if n > 0 {
+            let s = String::from_utf8_lossy(&buf[..n]).to_string();
+            if s.to_ascii_lowercase().starts_with("ssh-") || s.contains("OpenSSH") {
+                return Some(s.trim().replace('\n', "\\n").replace('\r', "\\r"));
+            }
+        }
+    }
+    None
 }
 
 fn is_http_port(port: u16) -> bool {

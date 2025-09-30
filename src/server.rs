@@ -51,6 +51,8 @@ pub struct ScanRequest {
     pub concurrency: Option<usize>,
     #[serde(default)]
     pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub probe_redis: Option<bool>,
 }
 
 pub async fn spawn_server(bind: &str) -> Result<()> {
@@ -167,13 +169,14 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
     // Spawn scan task
     let app2 = app.clone();
     tokio::spawn(async move {
-        let res = scanner::scan_targets_with_shared(
+        let res = scanner::scan_targets_with_shared_opts(
             &all_ips,
             &ports,
             concurrency,
             timeout,
             cancel.clone(),
             progress.clone(),
+            req.probe_redis.unwrap_or(false),
         )
         .await;
 
