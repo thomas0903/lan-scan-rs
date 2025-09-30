@@ -23,4 +23,3 @@ fn invalid_port_rejected() {
     let input = "0\n"; // invalid: out of range
     assert!(parse_ports_str(input).is_err());
 }
-

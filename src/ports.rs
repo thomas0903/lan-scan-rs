@@ -16,19 +16,17 @@ pub fn parse_ports_str(s: &str) -> Result<Vec<u16>> {
     for (idx, raw_line) in s.lines().enumerate() {
         let line_no = idx + 1;
         // Strip comments and trim
-        let line = raw_line
-            .split('#')
-            .next()
-            .map(str::trim)
-            .unwrap_or("");
+        let line = raw_line.split('#').next().map(str::trim).unwrap_or("");
         if line.is_empty() {
             continue;
         }
 
         // Range `start-end`
         if let Some((a, b)) = line.split_once('-') {
-            let start = parse_port_str(a.trim()).with_context(|| format!("line {line_no}: invalid start in range: {a}"))?;
-            let end = parse_port_str(b.trim()).with_context(|| format!("line {line_no}: invalid end in range: {b}"))?;
+            let start = parse_port_str(a.trim())
+                .with_context(|| format!("line {line_no}: invalid start in range: {a}"))?;
+            let end = parse_port_str(b.trim())
+                .with_context(|| format!("line {line_no}: invalid end in range: {b}"))?;
             if start > end {
                 bail!("line {line_no}: invalid range {start}-{end} (start > end)");
             }
@@ -70,10 +68,10 @@ pub fn load_ports_or_default(path: impl AsRef<Path>) -> Vec<u16> {
 /// This list is intentionally small-but-useful and safe for LAN scanning.
 pub fn default_ports() -> Vec<u16> {
     const DEFAULT: &[u16] = &[
-        21, 22, 23, 25, 53, 67, 68, 69, 80, 110, 123, 135, 137, 138, 139, 143, 161, 389, 443, 445, 465,
-        500, 514, 587, 631, 993, 995, 1025, 1433, 1521, 1723, 1883, 2049, 2375, 2380, 3000, 3128, 3260,
-        3306, 3389, 4369, 5000, 5040, 5432, 5672, 5900, 5985, 5986, 6379, 7001, 7002, 8000, 8008, 8080,
-        8081, 8088, 8443, 8500, 8888, 9000, 9092, 9200, 9300, 11211, 27017,
+        21, 22, 23, 25, 53, 67, 68, 69, 80, 110, 123, 135, 137, 138, 139, 143, 161, 389, 443, 445,
+        465, 500, 514, 587, 631, 993, 995, 1025, 1433, 1521, 1723, 1883, 2049, 2375, 2380, 3000,
+        3128, 3260, 3306, 3389, 4369, 5000, 5040, 5432, 5672, 5900, 5985, 5986, 6379, 7001, 7002,
+        8000, 8008, 8080, 8081, 8088, 8443, 8500, 8888, 9000, 9092, 9200, 9300, 11211, 27017,
     ];
     DEFAULT.to_vec()
 }

@@ -14,8 +14,13 @@ fn expand_excludes_network_and_broadcast() {
     let ips = expand_cidr_to_ips(ipnet::IpNet::V4(net));
     let list: Vec<_> = ips
         .into_iter()
-        .map(|ip| match ip { std::net::IpAddr::V4(v) => v, _ => unreachable!() })
+        .map(|ip| match ip {
+            std::net::IpAddr::V4(v) => v,
+            _ => unreachable!(),
+        })
         .collect();
-    assert_eq!(list, vec![Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2)]);
+    assert_eq!(
+        list,
+        vec![Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2)]
+    );
 }
-

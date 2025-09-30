@@ -58,9 +58,7 @@ fn expand_ipv4net_hosts(net: Ipv4Net) -> Vec<Ipv4Addr> {
         // Too small to have host addresses
         return Vec::new();
     }
-    (start + 1..end)
-        .map(|n| Ipv4Addr::from(n))
-        .collect()
+    (start + 1..end).map(Ipv4Addr::from).collect()
 }
 
 #[cfg(test)]
@@ -80,12 +78,14 @@ mod tests {
         let hosts = expand_cidr_to_ips(IpNet::V4(net));
         let ips: Vec<Ipv4Addr> = hosts
             .into_iter()
-            .filter_map(|ip| match ip { IpAddr::V4(v4) => Some(v4), _ => None })
+            .filter_map(|ip| match ip {
+                IpAddr::V4(v4) => Some(v4),
+                _ => None,
+            })
             .collect();
-        assert_eq!(ips, vec![
-            Ipv4Addr::new(192, 168, 1, 1),
-            Ipv4Addr::new(192, 168, 1, 2),
-        ]);
+        assert_eq!(
+            ips,
+            vec![Ipv4Addr::new(192, 168, 1, 1), Ipv4Addr::new(192, 168, 1, 2),]
+        );
     }
 }
-

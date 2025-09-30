@@ -11,7 +11,6 @@ use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
 use tokio_util::sync::CancellationToken;
 
-
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
 ///
 /// - Limits concurrent socket attempts using a `Semaphore`.
@@ -55,6 +54,12 @@ impl SharedProgress {
     }
 }
 
+impl Default for SharedProgress {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub async fn scan_targets_with_shared(
     targets: &[IpAddr],
     ports: &[u16],
@@ -84,7 +89,11 @@ async fn scan_targets_internal(
 ) -> Result<ScanResults> {
     let total = targets.len() as u64 * ports.len() as u64;
     let (scanned_done, open_count, entries) = if let Some(s) = &shared_opt {
-        (s.scanned_done.clone(), s.open_count.clone(), s.entries.clone())
+        (
+            s.scanned_done.clone(),
+            s.open_count.clone(),
+            s.entries.clone(),
+        )
     } else {
         (
             Arc::new(AtomicU64::new(0)),
@@ -95,7 +104,7 @@ async fn scan_targets_internal(
 
     let sem = Arc::new(Semaphore::new(concurrency.clamp(1, 5_000)));
     let mut set = JoinSet::new();
-    let cancel = cancel_opt.unwrap_or_else(CancellationToken::new);
+    let cancel = cancel_opt.unwrap_or_default();
 
     // Optional: Ctrl-C cancels the scan.
     let cancel_ctrlc = cancel.clone();
@@ -115,7 +124,11 @@ async fn scan_targets_internal(
             if cancel.is_cancelled() {
                 break;
             }
-            let permit = sem.clone().acquire_owned().await.expect("semaphore in scope");
+            let permit = sem
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("semaphore in scope");
             let entries = entries.clone();
             let scanned_done = scanned_done.clone();
             let open_count = open_count.clone();
@@ -161,7 +174,7 @@ async fn scan_targets_internal(
     while let Some(_res) = set.join_next().await {}
 
     let entries_vec = Arc::try_unwrap(entries)
-        .unwrap_or_else(|arc| futures_collect_vec_blocking(arc))
+        .unwrap_or_else(futures_collect_vec_blocking)
         .into_inner();
 
     let results = ScanResults {

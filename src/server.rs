@@ -15,8 +15,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
 
 use crate::{
-    netdetect,
-    ports,
+    netdetect, ports,
     scanner::{self, SharedProgress},
     types::ScanResults,
 };
@@ -77,9 +76,7 @@ pub async fn spawn_server(bind: &str) -> Result<()> {
 
     let static_svc = ServeDir::new("ui").append_index_html_on_directories(true);
 
-    let app = Router::new()
-        .nest("/api", api)
-        .fallback_service(static_svc);
+    let app = Router::new().nest("/api", api).fallback_service(static_svc);
 
     println!("Serving UI on http://{}", bind);
     axum::serve(tokio::net::TcpListener::bind(bind).await?, app).await?;
@@ -96,7 +93,12 @@ async fn get_status(State(app): State<AppState>) -> impl IntoResponse {
     } else {
         (s.status.scanned, s.status.open)
     };
-    let out = Status { total: s.status.total, scanned, open, state: s.status.state.clone() };
+    let out = Status {
+        total: s.status.total,
+        scanned,
+        open,
+        state: s.status.state.clone(),
+    };
     (StatusCode::OK, Json(out))
 }
 
@@ -116,12 +118,16 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
         if t.contains('/') {
             match t.parse::<IpNet>() {
                 Ok(n) => all_ips.extend(netdetect::expand_cidr_to_ips(n)),
-                Err(e) => return (StatusCode::BAD_REQUEST, format!("invalid CIDR: {e}")).into_response(),
+                Err(e) => {
+                    return (StatusCode::BAD_REQUEST, format!("invalid CIDR: {e}")).into_response()
+                }
             }
         } else {
             match t.parse::<IpAddr>() {
                 Ok(ip) => all_ips.push(ip),
-                Err(e) => return (StatusCode::BAD_REQUEST, format!("invalid IP: {e}")).into_response(),
+                Err(e) => {
+                    return (StatusCode::BAD_REQUEST, format!("invalid IP: {e}")).into_response()
+                }
             }
         }
     }
@@ -147,7 +153,12 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
         if let Some(c) = s.cancel.take() {
             c.cancel();
         }
-        s.status = Status { total, scanned: 0, open: 0, state: "running".into() };
+        s.status = Status {
+            total,
+            scanned: 0,
+            open: 0,
+            state: "running".into(),
+        };
         s.results = None;
         s.progress = Some(progress.clone());
         s.cancel = Some(cancel.clone());
@@ -185,5 +196,14 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
         }
     });
 
-    (StatusCode::ACCEPTED, Json(Status { total, scanned: 0, open: 0, state: "running".into() })).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(Status {
+            total,
+            scanned: 0,
+            open: 0,
+            state: "running".into(),
+        }),
+    )
+        .into_response()
 }

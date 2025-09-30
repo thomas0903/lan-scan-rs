@@ -19,4 +19,3 @@ pub struct ScanResults {
     pub open_count: u64,
     pub entries: Vec<ScanEntry>,
 }
-

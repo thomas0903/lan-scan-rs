@@ -1,10 +1,9 @@
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::time::Duration;
-use std::net::{IpAddr, Ipv4Addr};
 
-use lan_scan_rs::{netdetect, scanner, server};
 use lan_scan_rs::types::ScanResults;
-use serde_json;
+use lan_scan_rs::{netdetect, scanner, server};
 use std::fs::File;
 
 use anyhow::Result;
@@ -74,7 +73,7 @@ async fn main() -> Result<()> {
                 let mut total_ips = 0usize;
                 println!("Detected local IPv4 CIDRs:");
                 for cidr in &cidrs {
-                    let ips = netdetect::expand_cidr_to_ips(cidr.clone());
+                    let ips = netdetect::expand_cidr_to_ips(*cidr);
                     total_ips += ips.len();
                     println!("  - {} ({} hosts)", cidr, ips.len());
                 }
@@ -103,7 +102,10 @@ async fn main() -> Result<()> {
             let targets = vec![IpAddr::V4(Ipv4Addr::LOCALHOST)];
             // Keep demo ports small and fast
             let demo_ports: Vec<u16> = vec![22, 80, 443, 8080];
-            println!("\nRunning demo scan for 127.0.0.1 on ports {:?}...", demo_ports);
+            println!(
+                "\nRunning demo scan for 127.0.0.1 on ports {:?}...",
+                demo_ports
+            );
             let results = scanner::scan_targets(
                 &targets,
                 &demo_ports,
