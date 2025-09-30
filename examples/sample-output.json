@@ -1,0 +1,16 @@
+{
+  "scanned_total": 4,
+  "scanned_done": 4,
+  "open_count": 1,
+  "entries": [
+    {
+      "ip": "127.0.0.1",
+      "port": 8080,
+      "open": true,
+      "latency_ms": 2,
+      "banner": "HTTP/1.1 400 Bad Request\r\n",
+      "timestamp": "1700000000"
+    }
+  ]
+}
+

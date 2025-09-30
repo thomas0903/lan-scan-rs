@@ -3,6 +3,9 @@ use std::time::Duration;
 use std::net::{IpAddr, Ipv4Addr};
 
 use lan_scan_rs::{netdetect, ports, scanner};
+use lan_scan_rs::types::ScanResults;
+use serde_json;
+use std::fs::File;
 
 use anyhow::Result;
 use clap::Parser;
@@ -97,25 +100,80 @@ async fn main() -> Result<()> {
                 Duration::from_millis(cli.timeout_ms),
             )
             .await?;
-            println!(
-                "Scan done: scanned {} sockets, {} open found",
-                results.scanned_done, results.open_count
-            );
-            for e in &results.entries {
-                println!(
-                    "  {}:{} open ({} ms){}",
-                    e.ip,
-                    e.port,
-                    e.latency_ms,
-                    e.banner
-                        .as_ref()
-                        .map(|b| format!(" banner=\"{}\"", b))
-                        .unwrap_or_default()
-                );
+            print_results_table(&results);
+            if let Some(path) = cli.output.as_deref() {
+                if let Err(e) = write_results_json(path, &results) {
+                    eprintln!("Failed to write JSON to {}: {}", path.display(), e);
+                } else {
+                    println!("Wrote JSON results to {}", path.display());
+                }
             }
         }
     }
 
     // Scanner, network detection, and UI server wiring will be implemented further in next steps.
+    Ok(())
+}
+
+fn print_results_table(results: &ScanResults) {
+    let mut ip_w = 2usize.max("ip".len());
+    let mut banner_w = 6usize.max("banner".len());
+    for e in &results.entries {
+        ip_w = ip_w.max(e.ip.len());
+        if let Some(b) = &e.banner {
+            banner_w = banner_w.max(b.len().min(60));
+        }
+    }
+    let port_w = 4usize.max("port".len());
+    let lat_w = 9usize.max("latency_ms".len());
+
+    println!(
+        "\nOpen ports: {} (scanned: {})",
+        results.open_count, results.scanned_done
+    );
+    println!(
+        "{:<ip_w$}  {:>port_w$}  {:>lat_w$}  {:<banner_w$}",
+        "ip",
+        "port",
+        "latency_ms",
+        "banner",
+        ip_w = ip_w,
+        port_w = port_w,
+        lat_w = lat_w,
+        banner_w = banner_w
+    );
+    println!(
+        "{:-<ip_w$}  {:-<port_w$}  {:-<lat_w$}  {:-<banner_w$}",
+        "",
+        "",
+        "",
+        "",
+        ip_w = ip_w,
+        port_w = port_w,
+        lat_w = lat_w,
+        banner_w = banner_w
+    );
+    for e in &results.entries {
+        let mut bsnip = e.banner.clone().unwrap_or_default();
+        if bsnip.len() > 60 {
+            bsnip.truncate(60);
+        }
+        println!(
+            "{:<ip_w$}  {:>port_w$}  {:>lat_w$}  {:<banner_w$}",
+            e.ip,
+            e.port,
+            e.latency_ms,
+            bsnip,
+            ip_w = ip_w,
+            port_w = port_w,
+            lat_w = lat_w,
+            banner_w = banner_w
+        );
+    }
+}
+
+fn write_results_json(path: &std::path::Path, results: &ScanResults) -> anyhow::Result<()> {
+    let file = File::create(path)?;
+    serde_json::to_writer_pretty(file, results)?;
     Ok(())
 }
