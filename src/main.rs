@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 mod ports;
+mod netdetect;
 
 use anyhow::Result;
 use clap::Parser;
@@ -60,6 +61,25 @@ fn main() -> Result<()> {
             .unwrap_or_else(|| "<none>".to_string())
     );
     println!("  serve_ui     : {}", cli.serve_ui);
+
+    // If no explicit targets were provided, detect local CIDRs and show a brief summary.
+    if cli.targets.is_none() {
+        match netdetect::detect_local_cidrs() {
+            Ok(cidrs) => {
+                let mut total_ips = 0usize;
+                println!("Detected local IPv4 CIDRs:");
+                for cidr in &cidrs {
+                    let ips = netdetect::expand_cidr_to_ips(cidr.clone());
+                    total_ips += ips.len();
+                    println!("  - {} ({} hosts)", cidr, ips.len());
+                }
+                println!("Total targets (approx): {}", total_ips);
+            }
+            Err(e) => {
+                eprintln!("Warning: failed to detect local networks: {e}");
+            }
+        }
+    }
 
     // Scanner, network detection, and UI server wiring will be implemented in later steps.
     // For now, we just return successfully after printing parsed options.
