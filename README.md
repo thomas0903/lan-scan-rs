@@ -20,7 +20,7 @@ Quick Examples
   - ./target/release/lan-scan-rs --ports ports.txt --concurrency 500 --timeout-ms 300 --output results.json
 
 Embedded Web UI
-- Start the embedded UI and API on 127.0.0.1:8080:
+- Start the embedded UI and API on 127.0.0.1:8080 (no scan starts automatically; use the UI to start one):
   - ./target/release/lan-scan-rs --serve-ui --bind 127.0.0.1:8080
 - Then open in your browser:
   - http://127.0.0.1:8080

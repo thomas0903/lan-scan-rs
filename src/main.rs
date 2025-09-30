@@ -102,80 +102,50 @@ async fn main() -> Result<()> {
         println!("UI server starting at http://{} (Ctrl+C to stop)", cli.bind);
     }
 
-    // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.
-    if let Some(t) = cli.targets.as_deref() {
-        if t.trim() == "127.0.0.1" {
-            let targets = vec![IpAddr::V4(Ipv4Addr::LOCALHOST)];
-            // Keep demo ports small and fast
-            let demo_ports: Vec<u16> = vec![22, 80, 443, 8080];
-            println!(
-                "\nRunning demo scan for 127.0.0.1 on ports {:?}...",
-                demo_ports
-            );
-            let results = scanner::scan_targets(
-                &targets,
-                &demo_ports,
-                cli.concurrency.min(64),
-                Duration::from_millis(cli.timeout_ms),
-            )
-            .await?;
-            print_results_table(&results);
-            if let Some(path) = cli.output.as_deref() {
-                if let Err(e) = write_results_json(path, &results) {
-                    eprintln!("Failed to write JSON to {}: {}", path.display(), e);
-                } else {
-                    println!("Wrote JSON results to {}", path.display());
+    if !cli.serve_ui {
+        // Small demo: if targets == 127.0.0.1, run a quick scan to demonstrate engine.
+        if let Some(t) = cli.targets.as_deref() {
+            if t.trim() == "127.0.0.1" {
+                let targets = vec![IpAddr::V4(Ipv4Addr::LOCALHOST)];
+                // Keep demo ports small and fast
+                let demo_ports: Vec<u16> = vec![22, 80, 443, 8080];
+                println!(
+                    "\nRunning demo scan for 127.0.0.1 on ports {:?}...",
+                    demo_ports
+                );
+                let results = scanner::scan_targets(
+                    &targets,
+                    &demo_ports,
+                    cli.concurrency.min(64),
+                    Duration::from_millis(cli.timeout_ms),
+                )
+                .await?;
+                print_results_table(&results);
+                if let Some(path) = cli.output.as_deref() {
+                    if let Err(e) = write_results_json(path, &results) {
+                        eprintln!("Failed to write JSON to {}: {}", path.display(), e);
+                    } else {
+                        println!("Wrote JSON results to {}", path.display());
+                    }
                 }
             }
         }
-    }
 
-    // If no demo override, run a full scan based on parsed targets and ports.
-    if cli.targets.is_some() && cli.targets.as_deref() != Some("127.0.0.1") {
-        let targets = parse_targets_arg(cli.targets.as_deref())?;
-        if targets.is_empty() {
-            eprintln!("No valid targets parsed. Exiting.");
-        } else {
-            let ports_list = ports::load_ports_or_default(&cli.ports);
-            println!(
-                "Starting scan: {} hosts x {} ports = {} sockets",
-                targets.len(),
-                ports_list.len(),
-                targets.len() * ports_list.len()
-            );
-            let results = scanner::scan_targets(
-                &targets,
-                &ports_list,
-                cli.concurrency,
-                Duration::from_millis(cli.timeout_ms),
-            )
-            .await?;
-            print_results_table(&results);
-            if let Some(path) = cli.output.as_deref() {
-                if let Err(e) = write_results_json(path, &results) {
-                    eprintln!("Failed to write JSON to {}: {}", path.display(), e);
-                } else {
-                    println!("Wrote JSON results to {}", path.display());
-                }
-            }
-        }
-    } else if cli.targets.is_none() {
-        // Auto-detect and scan defaults if no targets provided.
-        match netdetect::detect_local_cidrs() {
-            Ok(cidrs) => {
-                let mut targets_all: Vec<IpAddr> = Vec::new();
-                for cidr in &cidrs {
-                    targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
-                }
+        // If no demo override, run a full scan based on parsed targets and ports.
+        if cli.targets.is_some() && cli.targets.as_deref() != Some("127.0.0.1") {
+            let targets = parse_targets_arg(cli.targets.as_deref())?;
+            if targets.is_empty() {
+                eprintln!("No valid targets parsed. Exiting.");
+            } else {
                 let ports_list = ports::load_ports_or_default(&cli.ports);
                 println!(
                     "Starting scan: {} hosts x {} ports = {} sockets",
-                    targets_all.len(),
+                    targets.len(),
                     ports_list.len(),
-                    targets_all.len() * ports_list.len()
+                    targets.len() * ports_list.len()
                 );
                 let results = scanner::scan_targets(
-                    &targets_all,
+                    &targets,
                     &ports_list,
                     cli.concurrency,
                     Duration::from_millis(cli.timeout_ms),
@@ -190,7 +160,39 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-            Err(e) => eprintln!("Failed to detect local networks: {e}"),
+        } else if cli.targets.is_none() {
+            // Auto-detect and scan defaults if no targets provided.
+            match netdetect::detect_local_cidrs() {
+                Ok(cidrs) => {
+                    let mut targets_all: Vec<IpAddr> = Vec::new();
+                    for cidr in &cidrs {
+                        targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
+                    }
+                    let ports_list = ports::load_ports_or_default(&cli.ports);
+                    println!(
+                        "Starting scan: {} hosts x {} ports = {} sockets",
+                        targets_all.len(),
+                        ports_list.len(),
+                        targets_all.len() * ports_list.len()
+                    );
+                    let results = scanner::scan_targets(
+                        &targets_all,
+                        &ports_list,
+                        cli.concurrency,
+                        Duration::from_millis(cli.timeout_ms),
+                    )
+                    .await?;
+                    print_results_table(&results);
+                    if let Some(path) = cli.output.as_deref() {
+                        if let Err(e) = write_results_json(path, &results) {
+                            eprintln!("Failed to write JSON to {}: {}", path.display(), e);
+                        } else {
+                            println!("Wrote JSON results to {}", path.display());
+                        }
+                    }
+                }
+                Err(e) => eprintln!("Failed to detect local networks: {e}"),
+            }
         }
     }
 
