@@ -198,7 +198,7 @@ async fn scan_targets_internal(
                                 if let Some(sshb) = probe_ssh(&mut stream).await { b = Some(sshb); }
                             }
                             if b.is_none() {
-                                if let Some(pb) = probe_protocol(&mut stream, port, probe_redis).await {
+                                if let Some(pb) = probe_protocol(&mut stream, ip, port, probe_redis).await {
                                     b = Some(pb);
                                 }
                             }
@@ -259,9 +259,9 @@ async fn read_banner(stream: &mut TcpStream) -> Option<String> {
 
 /// Light, safe protocol-specific probes to coax a banner without being intrusive.
 /// Currently only sends an HTTP/1.0 GET on common HTTP ports.
-async fn probe_protocol(stream: &mut TcpStream, port: u16, probe_redis: bool) -> Option<String> {
+async fn probe_protocol(stream: &mut TcpStream, ip: IpAddr, port: u16, probe_redis: bool) -> Option<String> {
     if is_http_port(port) {
-        return probe_http(stream).await;
+        return probe_http(stream, ip).await;
     }
     if probe_redis && port == 6379 {
         return probe_redis_ping(stream).await;
@@ -327,9 +327,13 @@ fn format_cert_summary(cert: &Certificate) -> Option<String> {
     Some(parts.join(", "))
 }
 
-async fn probe_http(stream: &mut TcpStream) -> Option<String> {
-    let req = b"GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
-    let _ = time::timeout(Duration::from_millis(200), stream.write_all(req)).await.ok()?;
+async fn probe_http(stream: &mut TcpStream, ip: IpAddr) -> Option<String> {
+    let host = ip.to_string();
+    let req = format!(
+        "GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+        host
+    );
+    let _ = time::timeout(Duration::from_millis(200), stream.write_all(req.as_bytes())).await.ok()?;
     let mut buf = vec![0u8; 2048];
     let mut total = 0usize;
     if let Ok(Ok(n)) = time::timeout(Duration::from_millis(300), stream.read(&mut buf)).await {

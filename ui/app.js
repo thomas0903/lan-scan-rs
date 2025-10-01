@@ -102,11 +102,12 @@
     const ports = parsePorts($('#ports').value);
     const concurrency = parseInt($('#concurrency').value, 10) || 200;
     const timeout_ms = parseInt($('#timeout').value, 10) || 400;
+    const probe_redis = !!$('#probeRedis').checked;
 
     try {
       setStatus('Starting scan...');
       tableBody.innerHTML = '';
-      await apiPost('/scan', { targets, ports, concurrency, timeout_ms });
+      await apiPost('/scan', { targets, ports, concurrency, timeout_ms, probe_redis });
       setStatus('RUNNING — scanned 0/0');
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(pollLoop, 1000);
