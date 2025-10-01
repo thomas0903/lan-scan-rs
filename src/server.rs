@@ -73,6 +73,7 @@ pub async fn spawn_server(bind: &str) -> Result<()> {
     let api = Router::new()
         .route("/status", get(get_status))
         .route("/scan", post(post_scan))
+        .route("/cancel", post(post_cancel))
         .route("/results", get(get_results))
         .with_state(state.clone());
 
@@ -111,6 +112,24 @@ async fn get_results(State(app): State<AppState>) -> impl IntoResponse {
     } else {
         StatusCode::NO_CONTENT.into_response()
     }
+}
+
+async fn post_cancel(State(app): State<AppState>) -> impl IntoResponse {
+    let mut s = app.inner.write().await;
+    if let Some(c) = s.cancel.take() {
+        c.cancel();
+    }
+    // Return current snapshot; background task will mark done when finished
+    let (scanned, open) = if let Some(p) = s.progress.as_ref() {
+        (
+            p.scanned_done.load(std::sync::atomic::Ordering::Relaxed),
+            p.open_count.load(std::sync::atomic::Ordering::Relaxed),
+        )
+    } else {
+        (s.status.scanned, s.status.open)
+    };
+    let out = Status { total: s.status.total, scanned, open, state: s.status.state.clone() };
+    (StatusCode::ACCEPTED, Json(out)).into_response()
 }
 
 async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) -> impl IntoResponse {

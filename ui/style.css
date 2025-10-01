@@ -17,6 +17,7 @@ button:hover { filter: brightness(0.95); }
 
 .status { padding: 0 20px 12px 20px; }
 #statusText { font-weight: 600; }
+#eta { font-variant-numeric: tabular-nums; color: var(--muted); margin-left: 6px; }
 #progress { height: 4px; background: var(--accent); width: 0%; border-radius: 2px; transition: width 0.3s ease; }
 
 .results { padding: 0 20px 20px 20px; }
@@ -29,4 +30,3 @@ tbody tr:hover { background: #fcfcfc; }
   .controls { grid-template-columns: 1.5fr 1.5fr 0.7fr 0.7fr auto; align-items: end; }
   .actions { margin: 0 0 4px 0; }
 }
-

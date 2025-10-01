@@ -4,7 +4,11 @@
   const statusText = $('#statusText');
   const progressEl = $('#progress');
   const tableBody = $('#resultsTable tbody');
+  const etaEl = $('#eta');
+  const startBtn = $('#startBtn');
+  const stopBtn = $('#stopBtn');
   let pollTimer = null;
+  let history = []; // [{t, scanned}]
 
   function parseTargets(raw) {
     if (!raw) return [];
@@ -36,6 +40,13 @@
 
   function setStatus(msg) {
     statusText.textContent = msg;
+  }
+
+  function humanEta(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2,'0')}`;
   }
 
   async function apiGet(path) {
@@ -81,6 +92,33 @@
       setStatus(`${s.state.toUpperCase()} — scanned ${s.scanned}/${s.total} (${pct}%), open: ${s.open}`);
       progressEl.style.width = pct + '%';
       progressEl.setAttribute('data-progress', pct + '%');
+
+      // Update ETA based on recent scan rate
+      const now = Date.now() / 1000;
+      history.push({ t: now, scanned: s.scanned });
+      if (history.length > 10) history.shift();
+      let eta = '—';
+      if (history.length >= 2) {
+        const a = history[0];
+        const b = history[history.length - 1];
+        const dt = b.t - a.t;
+        const ds = b.scanned - a.scanned;
+        if (dt > 0 && ds > 0) {
+          const rate = ds / dt; // items per second
+          const remaining = Math.max(0, (s.total || 0) - s.scanned);
+          eta = humanEta(remaining / rate);
+        }
+      }
+      etaEl.textContent = eta;
+
+      // Toggle buttons
+      if (s.state === 'running') {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      } else {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
       if (s.state === 'done') {
         clearInterval(pollTimer);
         pollTimer = null;
@@ -107,6 +145,8 @@
     try {
       setStatus('Starting scan...');
       tableBody.innerHTML = '';
+      history = [];
+      etaEl.textContent = '—';
       await apiPost('/scan', { targets, ports, concurrency, timeout_ms, probe_redis });
       setStatus('RUNNING — scanned 0/0');
       if (pollTimer) clearInterval(pollTimer);
@@ -117,8 +157,17 @@
     }
   }
 
+  async function stopScan() {
+    try {
+      await apiPost('/cancel', {});
+    } catch (e) {
+      console.warn('cancel failed', e);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
-    $('#startBtn').addEventListener('click', startScan);
+    startBtn.addEventListener('click', startScan);
+    stopBtn.addEventListener('click', stopScan);
     // Start with an initial status fetch
     pollLoop();
   });
