@@ -141,13 +141,16 @@
     const concurrency = parseInt($('#concurrency').value, 10) || 200;
     const timeout_ms = parseInt($('#timeout').value, 10) || 400;
     const probe_redis = !!$('#probeRedis').checked;
+    const quick = !!$('#quick').checked;
+    const skip53 = !!$('#skip53').checked;
+    const exclude_ports = skip53 ? [53] : [];
 
     try {
       setStatus('Starting scan...');
       tableBody.innerHTML = '';
       history = [];
       etaEl.textContent = '—';
-      await apiPost('/scan', { targets, ports, concurrency, timeout_ms, probe_redis });
+      await apiPost('/scan', { targets, ports, concurrency, timeout_ms, probe_redis, quick, exclude_ports });
       setStatus('RUNNING — scanned 0/0');
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(pollLoop, 1000);

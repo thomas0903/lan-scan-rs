@@ -48,11 +48,15 @@ pub struct ScanRequest {
     #[serde(default)]
     pub ports: Vec<u16>,
     #[serde(default)]
+    pub exclude_ports: Option<Vec<u16>>, // ports to skip
+    #[serde(default)]
     pub concurrency: Option<usize>,
     #[serde(default)]
     pub timeout_ms: Option<u64>,
     #[serde(default)]
     pub probe_redis: Option<bool>,
+    #[serde(default)]
+    pub quick: Option<bool>, // if true and no ports provided, use quick port set
 }
 
 pub async fn spawn_server(bind: &str) -> Result<()> {
@@ -153,15 +157,21 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
         }
     }
 
-    let ports = if req.ports.is_empty() {
+    let mut ports = if req.quick.unwrap_or(false) && req.ports.is_empty() {
+        ports::quick_ports()
+    } else if req.ports.is_empty() {
         ports::default_ports()
     } else {
         req.ports
     };
+    if let Some(ex) = &req.exclude_ports { ports.retain(|p| !ex.contains(p)); }
 
     let total = (all_ips.len() as u64) * (ports.len() as u64);
     let concurrency = req.concurrency.unwrap_or(1000);
-    let timeout = Duration::from_millis(req.timeout_ms.unwrap_or(400));
+    let mut timeout = Duration::from_millis(req.timeout_ms.unwrap_or(400));
+    if req.quick.unwrap_or(false) && timeout > Duration::from_millis(250) {
+        timeout = Duration::from_millis(250);
+    }
 
     // Prepare shared progress and cancel token
     let progress = SharedProgress::new();

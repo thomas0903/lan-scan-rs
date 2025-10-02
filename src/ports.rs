@@ -76,6 +76,16 @@ pub fn default_ports() -> Vec<u16> {
     DEFAULT.to_vec()
 }
 
+/// A smaller set for quick scans, focusing on common interactive/web/DB ports.
+pub fn quick_ports() -> Vec<u16> {
+    const Q: &[u16] = &[
+        21, 22, 23, 25, 80, 110, 135, 139, 143, 443, 445, 465, 500, 587, 631, 993, 995, 1433, 1521, 1723,
+        1883, 3000, 3128, 3260, 3306, 3389, 5000, 5432, 5672, 5900, 5985, 5986, 6379, 7001, 7002, 8000, 8008,
+        8080, 8081, 8088, 8443, 8888, 9000, 9092, 9200, 9300, 11211, 27017,
+    ];
+    Q.to_vec()
+}
+
 fn parse_port_str(s: &str) -> Result<u16> {
     let val: u32 = s.parse::<u32>().map_err(|e| anyhow::anyhow!(e))?;
     if val == 0 || val > 65535 {

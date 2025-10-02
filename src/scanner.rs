@@ -334,13 +334,19 @@ async fn probe_http(stream: &mut TcpStream, ip: IpAddr) -> Option<String> {
         host
     );
     let _ = time::timeout(Duration::from_millis(200), stream.write_all(req.as_bytes())).await.ok()?;
-    let mut buf = vec![0u8; 2048];
-    let mut total = 0usize;
-    if let Ok(Ok(n)) = time::timeout(Duration::from_millis(300), stream.read(&mut buf)).await {
-        total = n;
+    // Read a bit more to capture headers + potential <title>
+    let deadline = Instant::now() + Duration::from_millis(400);
+    let mut buf = Vec::with_capacity(4096);
+    let mut tmp = [0u8; 1024];
+    loop {
+        if Instant::now() >= deadline || buf.len() >= 4096 { break; }
+        match time::timeout(Duration::from_millis(80), stream.read(&mut tmp)).await {
+            Ok(Ok(n)) if n > 0 => buf.extend_from_slice(&tmp[..n]),
+            _ => break,
+        }
+        if buf.windows(4).any(|w| w == b"\r\n\r\n") { break; }
     }
-    if total == 0 { return None; }
-    buf.truncate(total);
+    if buf.is_empty() { return None; }
     let text = String::from_utf8_lossy(&buf).to_string();
     let mut parts = Vec::new();
     if let Some(server) = extract_header(&text, "server") {

@@ -51,6 +51,14 @@ struct Cli {
     /// Enable Redis PING probe on port 6379 (optional, off by default).
     #[arg(long = "probe-redis", default_value_t = false)]
     probe_redis: bool,
+
+    /// Quick scan preset (smaller port set, faster timeouts when unspecified).
+    #[arg(long, default_value_t = false)]
+    quick: bool,
+
+    /// Exclude specific ports (comma-separated list or ranges: e.g., 53,135-139).
+    #[arg(long = "exclude-ports")]
+    exclude_ports: Option<String>,
 }
 
 #[tokio::main]
@@ -142,7 +150,10 @@ async fn main() -> Result<()> {
             if targets.is_empty() {
                 eprintln!("No valid targets parsed. Exiting.");
             } else {
-                let ports_list = ports::load_ports_or_default(&cli.ports);
+            let mut ports_list = if cli.quick { ports::quick_ports() } else { ports::load_ports_or_default(&cli.ports) };
+            if let Some(ex) = &cli.exclude_ports {
+                if let Ok(exv) = ports::parse_ports_str(ex) { ports_list.retain(|p| !exv.contains(p)); }
+            }
                 println!(
                     "Starting scan: {} hosts x {} ports = {} sockets",
                     targets.len(),
@@ -174,7 +185,10 @@ async fn main() -> Result<()> {
                     for cidr in &cidrs {
                         targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
                     }
-                    let ports_list = ports::load_ports_or_default(&cli.ports);
+                let mut ports_list = if cli.quick { ports::quick_ports() } else { ports::load_ports_or_default(&cli.ports) };
+                if let Some(ex) = &cli.exclude_ports {
+                    if let Ok(exv) = ports::parse_ports_str(ex) { ports_list.retain(|p| !exv.contains(p)); }
+                }
                     println!(
                         "Starting scan: {} hosts x {} ports = {} sockets",
                         targets_all.len(),
@@ -185,7 +199,7 @@ async fn main() -> Result<()> {
                         &targets_all,
                         &ports_list,
                         cli.concurrency,
-                        Duration::from_millis(cli.timeout_ms),
+                        Duration::from_millis(if cli.quick { cli.timeout_ms.min(250) } else { cli.timeout_ms }),
                         cli.probe_redis,
                     )
                     .await?;
