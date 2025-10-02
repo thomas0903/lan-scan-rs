@@ -1,6 +1,6 @@
 [package]
 name = "lan-scan-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Fast, safe-by-default async LAN TCP connect scanner with a tiny embedded web UI"
 license = "MIT"
