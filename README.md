@@ -171,7 +171,7 @@ Demo Script
 
 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=thomas0903/lan-scan-rs&type=Date)](https://star-history.com/#thomas0903/lan-scan-rs&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=thomas0903/lan-scan-rs&type=Date)](https://www.star-history.com/#thomas0903/lan-scan-rs&Date)
 
 License
 - MIT — see [LICENSE](LICENSE).
