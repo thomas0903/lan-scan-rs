@@ -89,16 +89,16 @@ ip         port  service  latency_ms  banner
 ```
 
 - JSON (see examples/sample-output.json):
-```json
+```text
 {
   "scanned_total": 4,
   "scanned_done": 4,
   "open_count": 4,
   "entries": [
-    { "ip": "127.0.0.1", "port": 2222, "service": "ssh",   "banner": "SSH-2.0-OpenSSH_9.8\r\n", ... },
-    { "ip": "127.0.0.1", "port": 8443, "service": "https", "banner": "TLS: subject_cn=localhost, issuer_cn=...", ... },
-    { "ip": "127.0.0.1", "port": 6379, "service": "redis", "banner": "redis PONG", ... },
-    { "ip": "127.0.0.1", "port": 8080, "service": "http",  "banner": "HTTP server=SimpleHTTP/0.6 ...", ... }
+    { "ip": "127.0.0.1", "port": 2222, "service": "ssh",   "banner": "SSH-2.0-OpenSSH_9.8\r\n" },
+    { "ip": "127.0.0.1", "port": 8443, "service": "https", "banner": "TLS: subject_cn=localhost, issuer_cn=localhost, not_after=..." },
+    { "ip": "127.0.0.1", "port": 6379, "service": "redis", "banner": "+PONG" },
+    { "ip": "127.0.0.1", "port": 8080, "service": "http",  "banner": "HTTP server=SimpleHTTP/0.6 ..., title=\"...\"" }
   ]
 }
 ```
@@ -137,12 +137,12 @@ CLI Reference
 ```
 
 HTTP API
-```http
+```text
 POST /api/scan
-{ "targets": ["CIDR|IP", ...], "ports": [u16], "exclude_ports": [u16], "concurrency": n, "timeout_ms": n, "probe_redis": bool, "quick": bool }
+{ "targets": ["CIDR|IP", ...], "ports": [<u16>], "exclude_ports": [<u16>], "concurrency": <n>, "timeout_ms": <n>, "probe_redis": <bool>, "quick": <bool> }
 
 GET /api/status
-{ "total": N, "scanned": M, "open": K, "state": "idle|running|done" }
+{ "total": <N>, "scanned": <M>, "open": <K>, "state": "idle|running|done" }
 
 GET /api/results
 // last ScanResults JSON
