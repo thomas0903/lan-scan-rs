@@ -1,6 +1,43 @@
 {
   "scanned_total": 4,
   "scanned_done": 4,
-  "open_count": 0,
-  "entries": []
+  "open_count": 4,
+  "entries": [
+    {
+      "ip": "127.0.0.1",
+      "port": 2222,
+      "open": true,
+      "latency_ms": 3,
+      "service": "ssh",
+      "banner": "SSH-2.0-OpenSSH_9.8\\r\\n",
+      "timestamp": "2025-10-02T12:51:03.180785Z"
+    },
+    {
+      "ip": "127.0.0.1",
+      "port": 8443,
+      "open": true,
+      "latency_ms": 0,
+      "service": "https",
+      "banner": "TLS: subject_cn=localhost, issuer_cn=localhost, not_after=Fri, 03 Oct 2025 12:50:40 +0000",
+      "timestamp": "2025-10-02T12:51:03.192725Z"
+    },
+    {
+      "ip": "127.0.0.1",
+      "port": 6379,
+      "open": true,
+      "latency_ms": 3,
+      "service": "redis",
+      "banner": "redis PONG",
+      "timestamp": "2025-10-02T12:51:03.383247Z"
+    },
+    {
+      "ip": "127.0.0.1",
+      "port": 8080,
+      "open": true,
+      "latency_ms": 3,
+      "service": "http",
+      "banner": "HTTP server=SimpleHTTP/0.6 Python/3.12.7, title=\"Directory listing for /\"",
+      "timestamp": "2025-10-02T12:51:03.384047Z"
+    }
+  ]
 }
