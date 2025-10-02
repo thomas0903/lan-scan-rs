@@ -175,6 +175,3 @@ Star History
 
 License
 - MIT — see [LICENSE](LICENSE).
-
-License
-- MIT — see LICENSE for details.
