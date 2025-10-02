@@ -2,10 +2,9 @@
 set -euo pipefail
 
 # Local demo runner: spins up several test services on loopback, runs the scanner
-# against them, writes JSON output, then shuts everything down.
+# against them, prints results to the terminal, then shuts everything down.
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUTPUT_PATH="${1:-$ROOT_DIR/examples/sample-output.json}"
 
 TMP_DIR="$(mktemp -d -t lan-scan-demo-XXXX)"
 HTTP_PID=""; TLS_PID=""; REDIS_PID=""; SSH_PID="";
@@ -95,12 +94,11 @@ EOF
 
 sleep 0.5
 
-echo "[+] Running scanner -> $OUTPUT_PATH"
+echo "[+] Running scanner"
 "$ROOT_DIR/target/release/lan-scan-rs" \
   --targets "$TMP_DIR/targets.txt" \
   --ports "$TMP_DIR/ports.txt" \
   --timeout-ms 300 \
-  --probe-redis \
-  --output "$OUTPUT_PATH"
+  --probe-redis
 
-echo "[+] Done. Output saved to: $OUTPUT_PATH"
+echo "[+] Done."
