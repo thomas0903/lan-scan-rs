@@ -2,6 +2,9 @@
 name = "lan-scan-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Fast, safe-by-default async LAN TCP connect scanner with a tiny embedded web UI"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"

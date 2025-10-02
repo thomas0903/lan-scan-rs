@@ -1,6 +1,8 @@
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use anyhow::Result;
+use axum::http::header::{CACHE_CONTROL, EXPIRES, PRAGMA};
+use axum::http::HeaderValue;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -13,8 +15,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
-use axum::http::header::{CACHE_CONTROL, EXPIRES, PRAGMA};
-use axum::http::HeaderValue;
 
 use crate::{
     netdetect, ports,
@@ -147,7 +147,12 @@ async fn post_cancel(State(app): State<AppState>) -> impl IntoResponse {
     } else {
         (s.status.scanned, s.status.open)
     };
-    let out = Status { total: s.status.total, scanned, open, state: s.status.state.clone() };
+    let out = Status {
+        total: s.status.total,
+        scanned,
+        open,
+        state: s.status.state.clone(),
+    };
     (StatusCode::ACCEPTED, Json(out)).into_response()
 }
 
@@ -179,7 +184,9 @@ async fn post_scan(State(app): State<AppState>, Json(req): Json<ScanRequest>) ->
     } else {
         req.ports
     };
-    if let Some(ex) = &req.exclude_ports { ports.retain(|p| !ex.contains(p)); }
+    if let Some(ex) = &req.exclude_ports {
+        ports.retain(|p| !ex.contains(p));
+    }
 
     let total = (all_ips.len() as u64) * (ports.len() as u64);
     let concurrency = req.concurrency.unwrap_or(1000);

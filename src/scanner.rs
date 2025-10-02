@@ -10,9 +10,9 @@ use tokio::net::TcpStream;
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 use tokio::time::{self, Instant};
-use tokio_util::sync::CancellationToken;
 use tokio_native_tls::native_tls::{self, Certificate};
 use tokio_native_tls::TlsConnector;
+use tokio_util::sync::CancellationToken;
 use x509_parser::prelude::*;
 
 /// Scan the provided targets and ports using asynchronous TCP connects with a concurrency limit.
@@ -38,7 +38,16 @@ pub async fn scan_targets_opts(
     timeout: Duration,
     probe_redis: bool,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, None, None, probe_redis).await
+    scan_targets_internal(
+        targets,
+        ports,
+        concurrency,
+        timeout,
+        None,
+        None,
+        probe_redis,
+    )
+    .await
 }
 
 /// Variant that accepts a `CancellationToken` to allow external cancellation.
@@ -49,7 +58,16 @@ pub async fn scan_targets_with_cancel(
     timeout: Duration,
     cancel: CancellationToken,
 ) -> Result<ScanResults> {
-    scan_targets_internal(targets, ports, concurrency, timeout, Some(cancel), None, false).await
+    scan_targets_internal(
+        targets,
+        ports,
+        concurrency,
+        timeout,
+        Some(cancel),
+        None,
+        false,
+    )
+    .await
 }
 
 #[derive(Clone, Debug)]
@@ -195,10 +213,14 @@ async fn scan_targets_internal(
                             // Attempt a short, passive banner read; then light protocol-specific probes
                             let mut b = read_banner(&mut stream).await;
                             if port == 22 {
-                                if let Some(sshb) = probe_ssh(&mut stream).await { b = Some(sshb); }
+                                if let Some(sshb) = probe_ssh(&mut stream).await {
+                                    b = Some(sshb);
+                                }
                             }
                             if b.is_none() {
-                                if let Some(pb) = probe_protocol(&mut stream, ip, port, probe_redis).await {
+                                if let Some(pb) =
+                                    probe_protocol(&mut stream, ip, port, probe_redis).await
+                                {
                                     b = Some(pb);
                                 }
                             }
@@ -259,7 +281,12 @@ async fn read_banner(stream: &mut TcpStream) -> Option<String> {
 
 /// Light, safe protocol-specific probes to coax a banner without being intrusive.
 /// Currently only sends an HTTP/1.0 GET on common HTTP ports.
-async fn probe_protocol(stream: &mut TcpStream, ip: IpAddr, port: u16, probe_redis: bool) -> Option<String> {
+async fn probe_protocol(
+    stream: &mut TcpStream,
+    ip: IpAddr,
+    port: u16,
+    probe_redis: bool,
+) -> Option<String> {
     if is_http_port(port) {
         return probe_http(stream, ip).await;
     }
@@ -273,7 +300,11 @@ fn is_tls_port(port: u16) -> bool {
     matches!(port, 443 | 8443 | 9443 | 993 | 995 | 465)
 }
 
-async fn tls_probe(stream: TcpStream, ip: IpAddr, _port: u16) -> Option<(Option<String>, Option<String>)> {
+async fn tls_probe(
+    stream: TcpStream,
+    ip: IpAddr,
+    _port: u16,
+) -> Option<(Option<String>, Option<String>)> {
     let domain = match ip {
         IpAddr::V4(v4) => v4.to_string(),
         IpAddr::V6(v6) => v6.to_string(),
@@ -321,8 +352,12 @@ fn format_cert_summary(cert: &Certificate) -> Option<String> {
         .to_rfc2822()
         .unwrap_or_else(|_| "invalid".to_string());
     let mut parts = Vec::new();
-    if !subject_cn.is_empty() { parts.push(format!("subject_cn={}", subject_cn)); }
-    if !issuer_cn.is_empty() { parts.push(format!("issuer_cn={}", issuer_cn)); }
+    if !subject_cn.is_empty() {
+        parts.push(format!("subject_cn={}", subject_cn));
+    }
+    if !issuer_cn.is_empty() {
+        parts.push(format!("issuer_cn={}", issuer_cn));
+    }
     parts.push(format!("not_after={}", not_after));
     Some(parts.join(", "))
 }
@@ -333,20 +368,28 @@ async fn probe_http(stream: &mut TcpStream, ip: IpAddr) -> Option<String> {
         "GET / HTTP/1.0\r\nUser-Agent: lan-scan-rs/0.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
         host
     );
-    let _ = time::timeout(Duration::from_millis(200), stream.write_all(req.as_bytes())).await.ok()?;
+    let _ = time::timeout(Duration::from_millis(200), stream.write_all(req.as_bytes()))
+        .await
+        .ok()?;
     // Read a bit more to capture headers + potential <title>
     let deadline = Instant::now() + Duration::from_millis(400);
     let mut buf = Vec::with_capacity(4096);
     let mut tmp = [0u8; 1024];
     loop {
-        if Instant::now() >= deadline || buf.len() >= 4096 { break; }
+        if Instant::now() >= deadline || buf.len() >= 4096 {
+            break;
+        }
         match time::timeout(Duration::from_millis(80), stream.read(&mut tmp)).await {
             Ok(Ok(n)) if n > 0 => buf.extend_from_slice(&tmp[..n]),
             _ => break,
         }
-        if buf.windows(4).any(|w| w == b"\r\n\r\n") { break; }
+        if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+            break;
+        }
     }
-    if buf.is_empty() { return None; }
+    if buf.is_empty() {
+        return None;
+    }
     let text = String::from_utf8_lossy(&buf).to_string();
     let mut parts = Vec::new();
     if let Some(server) = extract_header(&text, "server") {
@@ -355,7 +398,11 @@ async fn probe_http(stream: &mut TcpStream, ip: IpAddr) -> Option<String> {
     if let Some(title) = extract_html_title(&text) {
         parts.push(format!("title=\"{}\"", title));
     }
-    if parts.is_empty() { Some("HTTP".to_string()) } else { Some(format!("HTTP {}", parts.join(", "))) }
+    if parts.is_empty() {
+        Some("HTTP".to_string())
+    } else {
+        Some(format!("HTTP {}", parts.join(", ")))
+    }
 }
 
 fn extract_header(resp: &str, name: &str) -> Option<String> {
@@ -366,7 +413,9 @@ fn extract_header(resp: &str, name: &str) -> Option<String> {
                 return Some(v.trim().to_string());
             }
         }
-        if line.trim().is_empty() { break; }
+        if line.trim().is_empty() {
+            break;
+        }
     }
     None
 }
@@ -383,19 +432,25 @@ fn extract_html_title(resp: &str) -> Option<String> {
     let rest_l = &after[gt + 1..];
     let t_end_rel = rest_l.find("</title>")?;
     let mut title = rest[..t_end_rel].trim().to_string();
-    if title.len() > 120 { title.truncate(120); }
+    if title.len() > 120 {
+        title.truncate(120);
+    }
     Some(title)
 }
 
 async fn probe_redis_ping(stream: &mut TcpStream) -> Option<String> {
     // RESP: *1 CRLF $4 CRLF PING CRLF
     let pkt = b"*1\r\n$4\r\nPING\r\n";
-    let _ = time::timeout(Duration::from_millis(200), stream.write_all(pkt)).await.ok()?;
+    let _ = time::timeout(Duration::from_millis(200), stream.write_all(pkt))
+        .await
+        .ok()?;
     let mut buf = [0u8; 64];
     if let Ok(Ok(n)) = time::timeout(Duration::from_millis(200), stream.read(&mut buf)).await {
         if n > 0 {
             let s = String::from_utf8_lossy(&buf[..n]).to_string();
-            if s.starts_with("+PONG") { return Some("redis PONG".to_string()); }
+            if s.starts_with("+PONG") {
+                return Some("redis PONG".to_string());
+            }
             return Some(s.replace('\n', "\\n").replace('\r', "\\r"));
         }
     }

@@ -150,10 +150,16 @@ async fn main() -> Result<()> {
             if targets.is_empty() {
                 eprintln!("No valid targets parsed. Exiting.");
             } else {
-            let mut ports_list = if cli.quick { ports::quick_ports() } else { ports::load_ports_or_default(&cli.ports) };
-            if let Some(ex) = &cli.exclude_ports {
-                if let Ok(exv) = ports::parse_ports_str(ex) { ports_list.retain(|p| !exv.contains(p)); }
-            }
+                let mut ports_list = if cli.quick {
+                    ports::quick_ports()
+                } else {
+                    ports::load_ports_or_default(&cli.ports)
+                };
+                if let Some(ex) = &cli.exclude_ports {
+                    if let Ok(exv) = ports::parse_ports_str(ex) {
+                        ports_list.retain(|p| !exv.contains(p));
+                    }
+                }
                 println!(
                     "Starting scan: {} hosts x {} ports = {} sockets",
                     targets.len(),
@@ -185,10 +191,16 @@ async fn main() -> Result<()> {
                     for cidr in &cidrs {
                         targets_all.extend(netdetect::expand_cidr_to_ips(*cidr));
                     }
-                let mut ports_list = if cli.quick { ports::quick_ports() } else { ports::load_ports_or_default(&cli.ports) };
-                if let Some(ex) = &cli.exclude_ports {
-                    if let Ok(exv) = ports::parse_ports_str(ex) { ports_list.retain(|p| !exv.contains(p)); }
-                }
+                    let mut ports_list = if cli.quick {
+                        ports::quick_ports()
+                    } else {
+                        ports::load_ports_or_default(&cli.ports)
+                    };
+                    if let Some(ex) = &cli.exclude_ports {
+                        if let Ok(exv) = ports::parse_ports_str(ex) {
+                            ports_list.retain(|p| !exv.contains(p));
+                        }
+                    }
                     println!(
                         "Starting scan: {} hosts x {} ports = {} sockets",
                         targets_all.len(),
@@ -199,7 +211,11 @@ async fn main() -> Result<()> {
                         &targets_all,
                         &ports_list,
                         cli.concurrency,
-                        Duration::from_millis(if cli.quick { cli.timeout_ms.min(250) } else { cli.timeout_ms }),
+                        Duration::from_millis(if cli.quick {
+                            cli.timeout_ms.min(250)
+                        } else {
+                            cli.timeout_ms
+                        }),
                         cli.probe_redis,
                     )
                     .await?;
@@ -239,7 +255,9 @@ fn print_results_table(results: &ScanResults) {
     let lat_w = 9usize.max("latency_ms".len());
     let mut svc_w = 7usize.max("service".len());
     for e in &results.entries {
-        if let Some(s) = &e.service { svc_w = svc_w.max(s.len()); }
+        if let Some(s) = &e.service {
+            svc_w = svc_w.max(s.len());
+        }
     }
 
     println!(
