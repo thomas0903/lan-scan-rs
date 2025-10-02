@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
+use axum::http::header::{CACHE_CONTROL, EXPIRES, PRAGMA};
+use axum::http::HeaderValue;
 
 use crate::{
     netdetect, ports,
@@ -82,8 +84,21 @@ pub async fn spawn_server(bind: &str) -> Result<()> {
         .with_state(state.clone());
 
     let static_svc = ServeDir::new("ui").append_index_html_on_directories(true);
-
-    let app = Router::new().nest("/api", api).fallback_service(static_svc);
+    let app = Router::new()
+        .nest("/api", api)
+        .fallback_service(static_svc)
+        .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+            CACHE_CONTROL,
+            HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+        ))
+        .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+            PRAGMA,
+            HeaderValue::from_static("no-cache"),
+        ))
+        .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+            EXPIRES,
+            HeaderValue::from_static("0"),
+        ));
 
     println!("Serving UI on http://{}", bind);
     axum::serve(tokio::net::TcpListener::bind(bind).await?, app).await?;
