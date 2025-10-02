@@ -7,10 +7,10 @@
       "ip": "127.0.0.1",
       "port": 2222,
       "open": true,
-      "latency_ms": 3,
+      "latency_ms": 0,
       "service": "ssh",
       "banner": "SSH-2.0-OpenSSH_9.8\\r\\n",
-      "timestamp": "2025-10-02T12:51:03.180785Z"
+      "timestamp": "2025-10-02T12:55:22.788716Z"
     },
     {
       "ip": "127.0.0.1",
@@ -18,26 +18,26 @@
       "open": true,
       "latency_ms": 0,
       "service": "https",
-      "banner": "TLS: subject_cn=localhost, issuer_cn=localhost, not_after=Fri, 03 Oct 2025 12:50:40 +0000",
-      "timestamp": "2025-10-02T12:51:03.192725Z"
+      "banner": "TLS: subject_cn=localhost, issuer_cn=localhost, not_after=Fri, 03 Oct 2025 12:55:21 +0000",
+      "timestamp": "2025-10-02T12:55:22.809101Z"
     },
     {
       "ip": "127.0.0.1",
       "port": 6379,
       "open": true,
-      "latency_ms": 3,
+      "latency_ms": 0,
       "service": "redis",
       "banner": "redis PONG",
-      "timestamp": "2025-10-02T12:51:03.383247Z"
+      "timestamp": "2025-10-02T12:55:22.991564Z"
     },
     {
       "ip": "127.0.0.1",
       "port": 8080,
       "open": true,
-      "latency_ms": 3,
+      "latency_ms": 0,
       "service": "http",
       "banner": "HTTP server=SimpleHTTP/0.6 Python/3.12.7, title=\"Directory listing for /\"",
-      "timestamp": "2025-10-02T12:51:03.384047Z"
+      "timestamp": "2025-10-02T12:55:22.992407Z"
     }
   ]
 }
